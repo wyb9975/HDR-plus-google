@@ -1,2 +1,2 @@
-# HDR-
+# HDR+
 HDR+ paper reproduction
