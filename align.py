@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from util import gauss_down4,Point
+from utils import gauss_down4
 t_size = 16 # 块大小
 t_size_2 = 8 # stride
 downsample_rate = 4 # 下采样的系数
