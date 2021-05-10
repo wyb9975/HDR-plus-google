@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-import skimage
+# import skimage
 # try:
 #     import torch
 #     import torch.nn.functional as F
@@ -8,14 +8,17 @@ import skimage
 # except ImportError:
 #     use_torch = False
 #     print("You'd better pip install pytorch")
-
+def gauss_down4(img):
+    down_1 = cv2.pyrDown(img)
+    down_2 = cv2.pyrDown(down_1)
+    return down_2
 def box_down2(input, name=None):
     return skimage.measure.block_reduce(input, block_size=(2,2), func=np.mean)
 
-def gauss_down4(input, name=None):
-    img = cv2.GaussianBlur(input, 5, -1)
-    img = skimage.measure.block_reduce(input, block_size=(4,4), func=np.mean)
-    return img
+# def gauss_down4(input, name=None):
+#     img = cv2.GaussianBlur(input, (5,5), -1)
+#     img = skimage.measure.block_reduce(input, block_size=(4,4), func=np.mean)
+#     return img
 
 def gauss_7x7(input, name=None):
     img = cv2.GaussianBlur(input, 7, -1)
