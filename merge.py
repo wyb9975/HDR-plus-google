@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import math
 '''
  * merge_temporal -- combines aligned tiles in the temporal dimension by
  * weighting various frames based on their L1 distance to the reference frame's
@@ -9,48 +10,57 @@ import cv2
 t_size = 16 # 块大小
 t_size_2 = 8 # stride
 downsample_rate = 4 # 下采样的系数
-def merge_temporal(img,aligment):
+weight_x = np.array([[0.5 - 0.5 * math.cos(2 * math.pi * (i + 0.5) / 16) for i in range(t_size)]])
+weight_y = weight_x.copy().T
+windows = np.dot(weight_y,weight_x) #consine函数
+def merge_temporal(img,aligment,frame):
     img = cv2.copyMakeBorder(img,0,t_size,0,t_size,cv2.BORDER_REFLECT) # 图像边缘补充
+    frame = cv2.copyMakeBorder(frame,0,t_size,0,t_size,cv2.BORDER_REFLECT) # 图像边缘补充
     aligment_shape = aligment.shape
     img_shape = img.shape
     output = np.zeros((aligment_shape[0],aligment_shape[1],t_size,t_size))
-    min_dist = 10 #最小距离
-    max_dist = 100 #最大距离
-    factor = 8 #缩放因子
+    std = np.std(img)
+    min_dist = 10  // 3#最小距离
+    max_dist = 30#最大距离
+    # factor = 8 // 4 #缩放因子
+    factor = 4 #缩放因子
+    # factor = std / 25 
+    result_img = np.zeros((img.shape[0],img.shape[1]))
+    # 遍历块
     for x in range(0,img_shape[0] - t_size,t_size_2):
         for y in range(0,img_shape[1] - t_size,t_size_2):
-            ref_img = img[x:x + t_size,y:y + t_size,0]
-            weight = 1
-            weig_arr = [1] 
+            ref_img = img[x:x + t_size,y:y + t_size,0] #参考帧的块
+            weight = 1 #权重和
+            weig_arr = [1] #权重数组
+            # n为除参考帧之外的每一帧，根据距离计算其他帧对应匹配块的权重
             for n in range(1,img_shape[2]):
                 offset = aligment[x // t_size_2,y // t_size_2,:,n]
                 cur_img = img[x + offset[0]:x + offset[0] + t_size,y + offset[1]:y + offset[1] + t_size,n]
-                dst= np.linalg.norm(ref_img-cur_img,ord=1) / 256
-                norm_dst = max(1,(dst - min_dist) / factor)
-                if norm_dst > max_dist:
+                diff = ref_img-cur_img
+                dst= np.linalg.norm(diff.reshape(-1),ord=1) / 256
+                norm_dst = max(1,(dst) / factor)
+                if norm_dst < max_dist:
                     weight += 1 / norm_dst
                     weig_arr.append(1 / norm_dst)
                 else:
                     weig_arr.append(0)
-            # temp = np.zeros((t_size,t_size))
+            temp = np.zeros((16,16)) #临时数组，用于储存所有帧的时域加权结果
             for n in range(0,img_shape[2]):
                 offset = aligment[x // t_size_2,y // t_size_2,:,n]
-                # temp += img[x + offset[0]:x + offset[0] + t_size,y + offset[1]:y + offset[1] + t_size,n] * (weig_arr[n] / weight)
-            # img[x:x + t_size,y:y + t_size,0] = temp
-                output[x // t_size_2,y // t_size_2,:,:] += img[x + offset[0]:x + offset[0] + t_size,y + offset[1]:y + offset[1] + t_size,n] * (weig_arr[n] / weight)
-    # img[:t_size_2,:,0] /= 2
-    # img[t_size_2:,:t_size_2,0] /= 2
-    # img[t_size_2:,t_size_2:,0] /= 4
-    # return img[:,:,0]
-    return output
+                temp += frame[x + offset[0]:x + offset[0] + t_size,y + offset[1]:y + offset[1] + t_size,n] * (weig_arr[n] / weight)
+            result_img[x:x + t_size,y:y + t_size] += windows*temp # 用时域加权后的结果乘上cosine函数
+            if x == 0 or y == 0:
+                result_img[x:x + t_size_2,y:y + t_size_2] = temp[:t_size_2,:t_size_2]# 图像边缘处理
+    return result_img[:img_shape[0] - t_size,:img_shape[1] - t_size] 
 
-# def merge_spatial(image,tile):
+
+# def merge_spatial(img,tile):
+#     weight_x = np.array([[0.5 - 0.5 * math.cos(2 * math.pi * (i + 0.5) / 16) for i in range(t_size)]])
+#     weight_y
+#     img = cv2.copyMakeBorder(img,0,t_size,0,t_size,cv2.BORDER_REFLECT) # 图像边缘补充
 #     tile_shape = tile.shape
-#     for i in range(1,tile_shape[0]):
-#         for j in range(1,tile.shape[1]):
-#             for x in range(t_size):
-#                 for y in range(t_size)
-
+#     for i in range(t_size_2,tile_shape[0]*t_size_2):
+#         for j
     
 # def merge_temporal(imgs, width, height, frames, alignment):
 #     def weight(tx, ty, n):#"merge_temporal_weights"
