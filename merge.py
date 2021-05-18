@@ -13,15 +13,16 @@ downsample_rate = 4 # 下采样的系数
 weight_x = np.array([[0.5 - 0.5 * math.cos(2 * math.pi * (i + 0.5) / 16) for i in range(t_size)]])
 weight_y = weight_x.copy().T
 windows = np.dot(weight_y,weight_x) #consine函数
-def merge_temporal(img,aligment,frame):
+def merge_temporal(img,aligment,frame,mask):
     img = cv2.copyMakeBorder(img,0,t_size,0,t_size,cv2.BORDER_REFLECT) # 图像边缘补充
     frame = cv2.copyMakeBorder(frame,0,t_size,0,t_size,cv2.BORDER_REFLECT) # 图像边缘补充
+    mask = cv2.copyMakeBorder(mask,0,t_size,0,t_size,cv2.BORDER_REFLECT) # 图像边缘补充
     aligment_shape = aligment.shape
     img_shape = img.shape
     output = np.zeros((aligment_shape[0],aligment_shape[1],t_size,t_size))
     std = np.std(img)
     min_dist = 10  // 3#最小距离
-    max_dist = 30#最大距离
+    max_dist = 5#最大距离
     # factor = 8 // 4 #缩放因子
     factor = 4 #缩放因子
     # factor = std / 25 
@@ -33,17 +34,23 @@ def merge_temporal(img,aligment,frame):
             weight = 1 #权重和
             weig_arr = [1] #权重数组
             # n为除参考帧之外的每一帧，根据距离计算其他帧对应匹配块的权重
-            for n in range(1,img_shape[2]):
-                offset = aligment[x // t_size_2,y // t_size_2,:,n]
-                cur_img = img[x + offset[0]:x + offset[0] + t_size,y + offset[1]:y + offset[1] + t_size,n]
-                diff = ref_img-cur_img
-                dst= np.linalg.norm(diff.reshape(-1),ord=1) / 256
-                norm_dst = max(1,(dst) / factor)
-                if norm_dst < max_dist:
-                    weight += 1 / norm_dst
-                    weig_arr.append(1 / norm_dst)
-                else:
-                    weig_arr.append(0)
+            if np.mean(mask[x:x + t_size,y:y+t_size]) > 0.1:
+                for n in range(1,img_shape[2]):
+                    offset = aligment[x // t_size_2,y // t_size_2,:,n]
+                    cur_img = img[x + offset[0]:x + offset[0] + t_size,y + offset[1]:y + offset[1] + t_size,n]
+                    diff = ref_img-cur_img
+                    dst= np.linalg.norm(diff.reshape(-1),ord=1) / 256
+                    norm_dst = max(1,(dst) / factor)
+                    if norm_dst < max_dist:
+                        weight += 1 / norm_dst
+                        weig_arr.append(1 / norm_dst)
+                    else:
+                        weig_arr.append(0)
+            else:
+                for n in range(1,img_shape[2]):
+                    aligment[x // t_size_2,y // t_size_2,:,n] = 0
+                    weight += 1
+                    weig_arr.append(1)
             temp = np.zeros((16,16)) #临时数组，用于储存所有帧的时域加权结果
             for n in range(0,img_shape[2]):
                 offset = aligment[x // t_size_2,y // t_size_2,:,n]
